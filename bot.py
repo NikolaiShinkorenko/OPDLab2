@@ -27,7 +27,7 @@ dp = Dispatcher()
 start_keyboard = ReplyKeyboardMarkup(keyboard=[
     [KeyboardButton(text="/reg"), KeyboardButton(text='/info'), KeyboardButton(text='/search')]],
     resize_keyboard=True,
-    input_field_placeholder="Список доступных команд")
+    input_field_placeholder="Доступные команды")
 
 race_types = ReplyKeyboardMarkup(keyboard=[
     [KeyboardButton(text=dsc.RACE_LIST[0])],
@@ -45,6 +45,12 @@ race_info = InlineKeyboardMarkup(inline_keyboard=[
 race_info_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⬅️ Назад", callback_data='back')]])
 
+reg_cancel = ReplyKeyboardMarkup(keyboard=[
+    [KeyboardButton(text="Отмена")]],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    input_field_placeholder="Вы можете отменить регистрацию")
+
 @dp.message(CommandStart())
 async def start(message: Message):
     await message.answer(dsc.START_INFO, reply_markup=start_keyboard)
@@ -52,13 +58,17 @@ async def start(message: Message):
 @dp.message(Command('reg'))
 async def reg_first(message: Message, state: FSMContext):
     await state.set_state(Reg.name)
-    await message.answer("Введите Ваше ФИО")
+    await message.answer("Введите Ваше ФИО", reply_markup=reg_cancel)
 
 @dp.message(Reg.name)
 async def reg_second(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await state.set_state(Reg.race_type)
-    await message.answer("Выберете тип забега", reply_markup=race_types)
+    if message.text == "Отмена":
+        await message.answer("Вы отменили регистрацию 😕", reply_markup=start_keyboard)
+        await state.clear()
+    else:
+        await state.update_data(name=message.text)
+        await state.set_state(Reg.race_type)
+        await message.answer("Выберете тип забега", reply_markup=race_types)
 
 @dp.message(Reg.race_type)
 async def reg_third(message: Message, state: FSMContext):
@@ -67,11 +77,9 @@ async def reg_third(message: Message, state: FSMContext):
         data = await state.get_data()
         await message.answer(f'Поздравляем, {data["name"]}, вы успешно записались на {data["race_type"].lower()}!',
                              reply_markup=start_keyboard)
-
         f = open('runners.txt', 'a+')
         f.write(f'{data["name"]}:{data["race_type"]}\n')
         f.close()
-
         await state.clear()
     else:
         await message.answer("Ошибка, такого варианта нет в моем списке 🥺")
